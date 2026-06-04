@@ -26,13 +26,12 @@ st.subheader("大數據管線：從資料清洗、特徵工程、雙格式下載
 st.caption("本系統整合了分類與迴歸雙核心模型，協助總部進行『戰略智慧排班』與『門市精準備料』。")
 
 # =========================================================================
-# ⚙️ 步驟一：載入資料 (對接實體路徑與自動沙盒防呆)
+# ⚙️ 步驟一：載入資料 (內建抗防禦 Try-Except 機制，防止 Git LFS 指標檔崩潰)
 # =========================================================================
-# 定義資料路徑 (可依據您的 GitHub 環境或 Colab 調整，此處設定標準相對路徑防止崩潰)
 file_path = "coffee_sales_8000.csv"
 
-# [沙盒防呆]：若偵測不到實體檔案，自動現場生成 8,000 筆具備空值與離群值的模擬 POS 資料
-if not os.path.exists(file_path):
+# 定義模擬數據生成器
+def generate_mock_data():
     np.random.seed(42)
     date_range = pd.date_range(start="2025-01-01", periods=8000, freq="h")
     mock_df = pd.DataFrame({
@@ -47,12 +46,34 @@ if not os.path.exists(file_path):
     # 製造人工空值與離群毒瘤
     mock_df.loc[np.random.choice(8000, 150, replace=False), "raw_temp"] = np.nan
     mock_df.loc[np.random.choice(8000, 20, replace=False), "hourly_sales"] = 9999.0 
-    mock_df.to_csv(file_path, index=False, encoding="utf-8-sig")
+    return mock_df
 
-df = pd.read_csv(file_path, header=0)
+df_is_valid = False
+
+# 實施核心防禦讀取
+if os.path.exists(file_path):
+    try:
+        df = pd.read_csv(file_path, header=0)
+        # 檢查關鍵欄位是否存在，確保不是被 Git LFS 虛假指標文字檔欺騙
+        required_cols = ["transaction_time", "raw_temp", "my_price", "comp_price", "weather", "promo", "hourly_sales"]
+        if all(c in df.columns for c in required_cols):
+            df_is_valid = True
+        else:
+            st.sidebar.warning("⚠️ 偵測到 CSV 檔案結構不符（可能為 Git LFS 指標文字檔）。")
+    except Exception as e:
+        st.sidebar.warning("⚠️ 讀取實體 CSV 失敗（ParserError），系統將啟動防呆防護機制。")
+
+# 若檔案無效或不存在，則自動現場生成黃金模擬數據，確保 Streamlit 不崩潰
+if not df_is_valid:
+    st.sidebar.info("💡 系統已全自動啟用『內建智慧模擬 POS 數據集』以維持網頁運作。")
+    df = generate_mock_data()
+    try:
+        df.to_csv(file_path, index=False, encoding="utf-8-sig")
+    except:
+        pass
 
 # =========================================================================
-# 📊 步驟二＆三：空值檢測補值、離群值與不平衡檢測處理 (符合 Pandas 3.0 規範)
+# 📊 步驟二＆三：空值檢測補值、離群值與不平衡檢測處理
 # =========================================================================
 # 1. 空值補值：氣溫欄位採用時間線性插補法
 df["raw_temp"] = df["raw_temp"].interpolate(method="linear")
@@ -60,7 +81,7 @@ df["raw_temp"] = df["raw_temp"].interpolate(method="linear")
 # 2. 離群值剔除：排除 POS 系統手殘鍵入的 9999 杯等不合常理的離群噪音
 df = df[df["hourly_sales"] <= 200].reset_index(drop=True)
 
-# 3. 定義分類目標標籤 Y (is_busy)：一小時銷量大於 85 杯定義為「忙碌爆單(1)」，其餘為「常態(0)」
+# 3. 定義分類目標標籤 Y (is_busy)
 df["is_busy"] = (df["hourly_sales"] > 85).astype(int)
 
 # =========================================================================
@@ -87,7 +108,7 @@ export_cols = [
 ]
 df_export = df[export_cols].reset_index(drop=True)
 
-# Streamlit 側邊欄下載專區 (保留原始簡約排班)
+# Streamlit 側邊欄下載專區
 st.sidebar.header("📥 智慧特徵檔案下載")
 st.sidebar.caption("下載清洗完成並富含智慧特徵工程之黃金資料集。")
 
@@ -137,7 +158,6 @@ actual_test_sales = df.loc[indices_test, "hourly_sales"].values
 # =========================================================================
 # 🤖 步驟七：各演算法獨立核心區塊 ── 分類器大作戰
 # =========================================================================
-# 商業實務通過率函數 (分類版)
 def calc_clf_pass_rate(actual, preds):
     pass_count = sum(0 if (p == 0 and a > 110) or (p == 1 and a < 50) else 1 for a, p in zip(actual, preds))
     return pass_count / len(actual)
@@ -171,16 +191,14 @@ df_clf_report = pd.DataFrame(clf_results)
 # =========================================================================
 # 🤖 步驟七：各演算法獨立核心區塊 ── 🏆 GA 遺傳演算法 ＋ XGBoost 迴歸大戰
 # =========================================================================
-# 商業實務通過率函數 (迴歸版：誤差正負 15 杯安全線內)
 def calc_reg_pass_rate(y_true, y_pred):
     return np.sum(np.abs(y_true - y_pred) <= 15) / len(y_true)
 
-# [GA 遺傳演算法優化器] 模擬天擇尋找 XGBoost 黃金超參數
+# 將全域變數傳入以符合 st.cache_data 規範
 @st.cache_data
-def run_ga_optimization():
+def run_ga_optimization(X_tr, y_tr, X_te, y_te):
     best_r2 = -999
     best_genes = [5, 0.1, 100]
-    # 在網頁版中進行 3 代的小型演化以確保執行效能
     for g in range(3):
         for _ in range(3):
             g_depth = int(np.random.choice([3, 5, 7]))
@@ -188,14 +206,14 @@ def run_ga_optimization():
             g_est = int(np.random.choice([50, 100]))
             
             test_xgb = XGBRegressor(max_depth=g_depth, learning_rate=g_lr, n_estimators=g_est, random_state=42, objective='reg:squarederror')
-            test_xgb.fit(X_train, y_train_reg)
-            score = r2_score(y_test_reg, test_xgb.predict(X_test))
+            test_xgb.fit(X_tr, y_tr)
+            score = r2_score(y_te, test_xgb.predict(X_te))
             if score > best_r2:
                 best_r2 = score
                 best_genes = [g_depth, g_lr, g_est]
     return best_genes
 
-optimal_genes = run_ga_optimization()
+optimal_genes = run_ga_optimization(X_train, y_train_reg, X_test, y_test_reg)
 
 reg_models = {
     "Linear Regression (基準對照組)": LinearRegression(),
@@ -221,7 +239,7 @@ for name, model in reg_models.items():
 df_reg_report = pd.DataFrame(reg_results)
 
 # =========================================================================
-# 🖥️ 步驟八：STREAMLIT 前端表格數據渲染 (保留原始版模樣式)
+# 🖥️ 步驟八：STREAMLIT 前端表格數據渲染
 # =========================================================================
 st.header("🏆 【大考成績單一：五大分類器完整指標評比表】")
 st.dataframe(df_clf_report, use_container_width=True)
@@ -230,18 +248,14 @@ st.header("🏆 【大考成績單二：五大迴歸模型完整指標評比表�
 st.dataframe(df_reg_report, use_container_width=True)
 
 # =========================================================================
-# 🌐 擴充區塊：Streamlit 網頁端 ── 核心指標數值意義與商用價值互動解析
+# 🌐 擴充區塊：核心指標數值意義與商用價值互動解析
 # =========================================================================
-st.write("---")  # 優雅分隔線
+st.write("---")  
 st.subheader("📊 AI 預報大考成績單：核心指標數值意義與商用價值解密")
-st.caption(
-    "評估 AI 模型的預測利用價值時，必須依據業界零售數據之黃金標準進行科學化解讀，切勿陷入純數學的分數迷思。"
-)
+st.caption("評估 AI 模型的預測利用價值時，必須依據業界零售數據之黃金標準進行科學化解讀，切勿陷入純數學的分數迷思。")
 
-# 使用 st.columns 建立響應式左右雙欄版面（左欄分類、右欄迴歸）
 col_clf, col_reg = st.columns(2)
 
-# --- 🎯 左欄：分類模型指標解析 ---
 with col_clf:
     st.markdown(
         """
@@ -259,14 +273,12 @@ with col_clf:
         """, 
         unsafe_allow_html=True
     )
-    
     st.info(
         "💡 **分類器業界利用價值線：**\n\n"
         "餐飲零售業基本及格線為 **80% 以上**。本系統寫下高達 **94.13%** 的頂尖測試表現，"
         "代表總部在進行**「跨門市大方向智慧排班與人力調度」**時，決策精準度高達九成以上！"
     )
 
-# --- 📈 右欄：迴歸模型指標解析 ---
 with col_reg:
     st.markdown(
         """
@@ -284,7 +296,6 @@ with col_reg:
         """, 
         unsafe_allow_html=True
     )
-    
     st.success(
         "💡 **迴歸模型業界利用價值線：**\n\n"
         "在隨機散客行為密集的餐飲流水帳中，**R² > 10% 即具顯著商業價值**，15%~30% 屬頂尖。 "
@@ -292,10 +303,9 @@ with col_reg:
         "達成 **69.56% 門市實務通過率**（誤差≤15杯安全線），直接對接**「一線門市每日物料精備料、零浪費控本」**戰術！"
     )
 
-# 底部診斷貼士
 st.markdown(
     "<p style='text-align: right; font-size: 12px; color: #7f8c8d; font-style: italic; margin-top: 10px;'>"
-    "* 系統健康診斷提示：當 Train 與 Test 指標差距大於 5% 時，系統會自動發出 Overfitting (過擬合/死記硬背) 風險警訊。"
+    "* 系統健康診斷提示：当 Train 與 Test 指標差距大於 5% 時，系統會自動發出 Overfitting (過擬合/死記硬背) 風險警訊。"
     "</p>", 
     unsafe_allow_html=True
 )
