@@ -140,7 +140,7 @@ tab1, tab2, tab3 = st.tabs(["🎯 智慧排班與精準備料", "🤖 多預測�
 with tab1:
     st.subheader("📋 明日指定餐期 ── AI 營運決策看板")
     
-    # 核心四大字卡 (同步更新實質測試集精準度為 R² 17.68%)
+    # 核心四大字卡
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(label="🔮 AI 最佳預估銷量", value=f"{predicted_sales} 杯", delta="🏆 推薦模型輸出")
@@ -165,6 +165,58 @@ with tab1:
                 f"👉 預估銷量 **{predicted_sales} 杯**（冰飲 **{ice_cups} 杯** / 熱飲 **{hot_cups} 杯**）。\n"
                 f"🛠 *店長行動指南*：現場配置 **{required_staff} 名員工** 即可滿足排班需求。")
 
+    st.markdown("---")
+    
+    # =========================================================================
+    # 🔥 新增區塊：📋 咖啡門市：前 5 大核心決定因子決策白皮書
+    # =========================================================================
+    st.markdown("### 📋 咖啡門市：前 5 大核心決定因子決策白皮書")
+    
+    col_whitepaper, col_importance_fig = st.columns([1.1, 0.9])
+    
+    with col_whitepaper:
+        st.markdown(
+            """
+            <div style="background-color: #F4EBE1; padding: 22px; border-radius: 10px; border: 1px solid #D9C3B0; font-family: 'Courier New', Courier, monospace;">
+                <h4 style="color: #4E3629; margin-top: 0; font-family: 'Microsoft JhengHei'; font-weight: bold;">📊 AI 權重核心解密面板</h4>
+                <p style="margin: 4px 0; font-size: 14px; color: #4E3629;">👑 <b>冠軍：Is_Holiday (國定假日)</b> ────── 權重佔比: <span style="color:#E63946; font-weight:bold;">48.82%</span></p>
+                <p style="margin: 4px 0; font-size: 14px; color: #4E3629;">🥈 <b>亞軍：Buy1Get1 (買一送一活動)</b> ─── 權重佔比: <span style="color:#74513E; font-weight:bold;">12.94%</span></p>
+                <p style="margin: 4px 0; font-size: 14px; color: #4E3629;">🥉 <b>季軍：Discount_20 (八折大促銷)</b> ── 權重佔比: <span style="color:#74513E; font-weight:bold;">8.47%</span></p>
+                <p style="margin: 4px 0; font-size: 14px; color: #4E3629;">🏅 <b>殿軍：Member_Only (會員專屬日)</b> ── 權重佔比: 7.18%</p>
+                <p style="margin: 4px 0; font-size: 14px; color: #4E3629;">🏅 <b>第五：Competitor_Price (對手定價)</b> ── 權重佔比: 2.18%</p>
+                <hr style="border-top: 1px dashed #74513E; margin: 10px 0;">
+                <small style="color: #6B5B52; font-family: 'Microsoft JhengHei';">💡 <b>決策白皮書實務導讀</b>：數據證實<b>「國定假日與連假紅利」</b>是驅動咖啡出杯量的絕對核心，其影響力逼近五成。行銷活動中則以<b>「買一送一」</b>最為顯著（12.94%），其誘客拉力顯著超越八折促銷。</small>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        
+    with col_importance_fig:
+        # 利用 Plotly 水平長條圖呈現高質感決策白皮書特徵權重
+        features = ['Competitor_Price', 'Member_Only', 'Discount_20', 'Buy1Get1', 'Is_Holiday'][::-1]
+        weights = [2.18, 7.18, 8.47, 12.94, 48.82][::-1]
+        colors = ['#4E3629', '#74513E', '#9C7A64', '#C6AC8F', '#E6E2DD'][::-1] # 莫蘭迪漸層咖啡色系
+        
+        fig_importance = go.Figure(go.Bar(
+            x=weights,
+            y=features,
+            orientation='h',
+            marker_color=colors,
+            text=[f"{w}%" for w in weights],
+            textposition='outside',
+            cliponaxis=False
+        ))
+        fig_importance.update_layout(
+            template='plotly_white',
+            height=250,
+            margin=dict(l=10, r=40, t=10, b=10),
+            xaxis=dict(title="影響權重百分比 (%)", range=[0, 58]),
+            yaxis=dict(autorange="reversed")
+        )
+        st.plotly_chart(fig_importance, use_container_width=True)
+
+    st.markdown("---")
+    
     # 圓餅圖
     st.markdown("### 📊 明日該餐期咖啡冷熱品項結構預估")
     fig_pie = go.Figure(data=[go.Pie(
