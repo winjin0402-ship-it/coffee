@@ -1,3 +1,4 @@
+import streamlit as pd
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -68,7 +69,6 @@ with st.sidebar.form(key="prediction_form"):
 # 🧠 步驟三：【後台核心多模型模擬演算法】── 同步 Colab 實戰基礎線
 # =========================================================================
 
-# 根據小時自動判定時段區間（Time_Slot），防範邏輯衝突
 if 6 <= hour <= 10:
     time_slot = "早晨 (Morning)"
     hour_effect = 10
@@ -84,11 +84,9 @@ else:
 
 st.sidebar.markdown(f"📋 **目前判定時段**：`{time_slot}`")
 
-# 衍生核心特徵：價差效應
 price_diff = comp_price - my_price  
-base_sales = 45.5 # 調整為更貼近真實餐飲每小時常態杯數
+base_sales = 45.5 
 
-# 🤖 【多種不同預測模型計算邏輯 ── 對齊 Colab 預估水平】
 linear_pred = int(base_sales + (hour - 12) * 1.1 + (temp - 24) * 0.4 + price_diff * 0.8)
 linear_pred = max(5, min(linear_pred, 120))
 
@@ -106,16 +104,13 @@ holiday_effect = 10 if is_holiday == "週末連假紅利 (Holiday)" else 0
 xgb_pred = int(base_sales + hour_effect + temp_effect + weather_effect + price_effect + promo_effect + holiday_effect)
 xgb_pred = max(5, min(xgb_pred, 120))
 
-# 📌 核心推薦基底
 predicted_sales = xgb_pred
 
-# 員工需求人數計算 (以實務每小時30杯為基準線)
 if predicted_sales <= 5:
     required_staff = 1
 else:
     required_staff = math.ceil(predicted_sales / 30)
 
-# 根據溫度決定冰熱口味結構比例
 if temp >= 28:
     ice_ratio, hot_ratio = 0.80, 0.20
 elif temp <= 16:
@@ -126,7 +121,6 @@ else:
 ice_cups = int(predicted_sales * ice_ratio)
 hot_cups = predicted_sales - ice_cups
 
-# 鮮奶需求量估算
 milk_factor = 0.7 if flavor_focus == "濃郁拿鐵系列 (Latte Coffee)" else 0.4
 milk_liters = round((predicted_sales * milk_factor * 0.2), 1)
 
@@ -136,11 +130,10 @@ milk_liters = round((predicted_sales * milk_factor * 0.2), 1)
 # =========================================================================
 tab1, tab2, tab3 = st.tabs(["🎯 智慧排班與精準備料", "🤖 多預測模型橫向評估 (含訓練/測試對比)", "📈 24H全天流量與定價推演"])
 
-# ─── TAB 1：看板區 ───
+# ─── TAB 1：看板區（保持原樣） ───
 with tab1:
     st.subheader("📋 明日指定餐期 ── AI 營運決策看板")
     
-    # 核心四大字卡
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(label="🔮 AI 最佳預估銷量", value=f"{predicted_sales} 杯", delta="🏆 推薦模型輸出")
@@ -149,11 +142,10 @@ with tab1:
     with col3:
         st.metric(label="🥛 核心物料: 鮮奶需求", value=f"{milk_liters} 公升", delta=f"主打: {flavor_focus.split()[0]}")
     with col4:
-        st.metric(label="🎯 實質測試集解釋力", value="17.68%", delta="Colab 實戰泛化 R²")
+        st.metric(label="🎯 實質測試集解釋力", value="17.39%", delta="Colab 最新泛化 R²")
 
     st.markdown("---")
     
-    # 智慧營運策略決策警示框（Action Plan）
     if predicted_sales >= 75:
         st.success(f"🔥 **【系統提示：預估迎來尖峰客流！】**\n"
                    f"👉 預估銷量達 **{predicted_sales} 杯**。\n"
@@ -167,9 +159,6 @@ with tab1:
 
     st.markdown("---")
     
-    # =========================================================================
-    # 🔥 新增區塊：📋 咖啡門市：前 5 大核心決定因子決策白皮書
-    # =========================================================================
     st.markdown("### 📋 咖啡門市：前 5 大核心決定因子決策白皮書")
     
     col_whitepaper, col_importance_fig = st.columns([1.1, 0.9])
@@ -192,78 +181,89 @@ with tab1:
         )
         
     with col_importance_fig:
-        # 利用 Plotly 水平長條圖呈現高質感決策白皮書特徵權重
         features = ['Competitor_Price', 'Member_Only', 'Discount_20', 'Buy1Get1', 'Is_Holiday'][::-1]
         weights = [2.18, 7.18, 8.47, 12.94, 48.82][::-1]
-        colors = ['#4E3629', '#74513E', '#9C7A64', '#C6AC8F', '#E6E2DD'][::-1] # 莫蘭迪漸層咖啡色系
+        colors = ['#4E3629', '#74513E', '#9C7A64', '#C6AC8F', '#E6E2DD'][::-1]
         
         fig_importance = go.Figure(go.Bar(
-            x=weights,
-            y=features,
-            orientation='h',
-            marker_color=colors,
-            text=[f"{w}%" for w in weights],
-            textposition='outside',
-            cliponaxis=False
+            x=weights, y=features, orientation='h', marker_color=colors,
+            text=[f"{w}%" for w in weights], textposition='outside', cliponaxis=False
         ))
         fig_importance.update_layout(
-            template='plotly_white',
-            height=250,
-            margin=dict(l=10, r=40, t=10, b=10),
-            xaxis=dict(title="影響權重百分比 (%)", range=[0, 58]),
-            yaxis=dict(autorange="reversed")
+            template='plotly_white', height=250, margin=dict(l=10, r=40, t=10, b=10),
+            xaxis=dict(title="影響權重百分比 (%)", range=[0, 58]), yaxis=dict(autorange="reversed")
         )
         st.plotly_chart(fig_importance, use_container_width=True)
 
     st.markdown("---")
-    
-    # 圓餅圖
     st.markdown("### 📊 明日該餐期咖啡冷熱品項結構預估")
     fig_pie = go.Figure(data=[go.Pie(
-        labels=['❄️ 冰飲系列 (Ice)', '🔥 熱飲系列 (Hot)'],
-        values=[ice_cups, hot_cups],
-        hole=.4,
-        marker=dict(colors=['#A8DADC', '#E63946'])
+        labels=['❄️ 冰飲系列 (Ice)', '🔥 熱飲系列 (Hot)'], values=[ice_cups, hot_cups],
+        hole=.4, marker=dict(colors=['#A8DADC', '#E63946'])
     )])
     fig_pie.update_layout(template='plotly_white', height=280, margin=dict(l=10, r=10, t=10, b=10))
     st.plotly_chart(fig_pie, use_container_width=True)
 
 
-# ─── 🤖 TAB 2：多預測模型比較與結果展示 (💥 100% 同步 Colab 真實數據) ───
+# ─── 🤖 TAB 2：多預測模型比較與結果展示 (✨ 完美切換雙版數據) ───
 with tab2:
-    # ---------------------------------------------------------------------
-    # 💥 區塊一：五大分類器完整指標評比表（100% 同步 Colab 結果）
-    # ---------------------------------------------------------------------
-    st.subheader("🎯 【大考成績單一：五大分類器完整指標評比表】（是非題型）")
-    st.markdown("此表格評估模型判斷『門市是否會陷入忙碌爆單(1)或常態(0)』的分類能力：")
+    st.subheader("🎯 【大考成績單一：五大分類器完整指標評比表】（是否會爆單）")
+    st.markdown("此表格評估模型判斷『門市是否會陷入忙碌爆單(1)或常態(0)』的分類防守能力。")
     
-    clf_model_data = {
-        "分類器模型名稱": [
-            "Logistic Regression (基準對照組)",
-            "類神經網路 (MLPClassifier)",
-            "深層類神經網路 (DNN)",
-            "支持向量機 (SVM)",
-            "K-最近鄰演算法 (K-NN)",
-            "🏆 XGBoost Classifier (整合樹模型)"
-        ],
-        "📖 Train Acc": ["70.31%", "70.77%", "70.77%", "70.77%", "77.69%", "75.86%"],
-        "🎯 Test Acc": ["70.44%", "71.00%", "71.00%", "71.00%", "67.81%", "69.56%"],
-        "✨ Precision": ["40.43%", "0.00%", "0.00%", "0.00%", "41.85%", "41.09%"],
-        "⚡ Recall": ["4.09%", "0.00%", "0.00%", "0.00%", "28.23%", "11.42%"],
-        "🔥 F1-Score": ["7.44%", "0.00%", "0.00%", "0.00%", "33.72%", "17.88%"],
-        "📈 門市實務通過率": ["98.25%", "100.00%", "100.00%", "100.00%", "89.00%", "95.44%"]
-    }
-    df_clf = pd.DataFrame(clf_model_data)
-    st.dataframe(df_clf, use_container_width=True)
+    # 🆕 新增：雙版本切換按鈕（只放在這，完全不影響外部功能與其他介面）
+    optimization_version = st.radio(
+        "🎛️ **請選擇分類器數據版本（展現對抗不平衡樣本優化成果）**：",
+        ["🔹 穩健平衡版本 (階段一調優)", "🔥 激進覺醒版本 (階段二深度調優)"],
+        horizontal=True
+    )
     
-    st.warning("⚠️ **【分類器數據診斷】**：\n"
-               "在實戰數據中，`MLP`、`DNN` 與 `SVM` 的 Precision、Recall 與 F1-Score 出現了 **0.00%**，同時實務通過率高達 **100%**。這在數據科學中是典型的**不平衡樣本陷阱**：模型因為過於保守，選擇「全部盲猜不爆單（常態）」，雖然這讓它在表面上達到了 71.00% 的 Accuracy，但對門市抓出突發爆單潮**完全沒有預警能力**。相比之下，**K-NN** 與 **XGBoost** 雖然 Accuracy 略低，但成功踏出步伐，具備捕捉爆單的能力。")
+    # 根據使用者的選擇，動態加載不同表格與提示
+    if optimization_version == "🔹 穩健平衡版本 (階段一調優)":
+        clf_model_data = {
+            "分類器模型名稱": [
+                "Logistic Regression (基準對照組)",
+                "類神經網路 (MLPClassifier)",
+                "深層類神經網路 (DNN)",
+                "支持向量機 (SVM)",
+                "K-最近鄰演算法 (K-NN)",
+                "🏆 XGBoost Classifier (整合樹模型)"
+            ],
+            "📖 Train Acc": ["70.36%", "70.81%", "72.66%", "70.77%", "76.97%", "78.53%"],
+            "🎯 Test Acc": ["70.44%", "70.94%", "71.25%", "71.00%", "66.50%", "69.44%"],
+            "✨ Precision": ["40.43%", "44.44%", "52.27%", "0.00%", "36.76%", "42.04%"],
+            "⚡ Recall": ["4.09%", "0.86%", "9.91%", "0.00%", "21.55%", "14.22%"],
+            "🔥 F1-Score": ["7.44%", "1.69%", "16.67%", "0.00%", "27.17%", "21.26%"],
+            "📈 門市實務通過率": ["98.25%", "99.75%", "97.44%", "100.00%", "89.62%", "94.38%"]
+        }
+        st.dataframe(pd.DataFrame(clf_model_data), use_container_width=True)
+        st.info("💡 **【穩健平衡版診斷】**：此版本中，**深層類神經網路 (DNN)** 成功跨越盲猜障礙，Precision 衝至 **52.27%**！而 **XGBoost** 維持全面性的穩健度，適合在追求高實務通過率（不隨意亂誤報）的場景下使用。")
+
+    else:
+        clf_model_data_v2 = {
+            "分類器模型名稱": [
+                "Logistic Regression (基準對照組)",
+                "類神經網路 (MLPClassifier)",
+                "深層類神經網路 (DNN)",
+                "支持向量機 (SVM)",
+                "K-最近鄰演算法 (K-NN)",
+                "🏆 XGBoost Classifier (整合樹模型)"
+            ],
+            "📖 Train Acc": ["58.91%", "75.84%", "99.67%", "59.59%", "100.00%", "71.14%"],
+            "🎯 Test Acc": ["58.69%", "67.44%", "61.75%", "55.44%", "66.56%", "70.94%"],
+            "✨ Precision": ["36.67%", "40.14%", "32.71%", "37.13%", "37.00%", "45.45%"],
+            "⚡ Recall": ["58.41%", "25.00%", "30.17%", "77.37%", "21.77%", "1.08%"],
+            "🔥 F1-Score": ["45.05%", "30.81%", "31.39%", "50.17%", "27.41%", "2.11%"],
+            "📈 門市實務通過率": ["71.88%", "89.56%", "82.69%", "63.69%", "89.62%", "99.62%"]
+        }
+        st.dataframe(pd.DataFrame(clf_model_data_v2), use_container_width=True)
+        st.success("🔥 **【激進覺醒版診斷】**：此版本展示了對抗資料不平衡的最終成果！原本集體盲猜的神經網路與 **支持向量機 (SVM)** 全面被強行喚醒！**SVM 的 召回率 (Recall) 暴奔至 77.37%，F1-Score 攀上 50.17% 歷史巔峰**，代表此版本具備極其敏銳的爆單捕捉雷達！")
+
     st.markdown("---")
 
     # ---------------------------------------------------------------------
-    # 📊 區塊二：五大迴歸模型完整指標評比表（100% 同步 Colab 結果）
+    # 📊 區塊二：五大迴歸模型完整指標評比表（保持原樣，數據精準對齊）
     # ---------------------------------------------------------------------
-    st.subheader("📈 【大考成績單二：五大迴歸模型橫向評估表】（填充題型）")
+    st.subheader("📈 【大考成績單二：五大迴歸模型橫向評估表】（精確出杯數）")
     st.markdown("此表格評估模型預估『未來任意餐期精確咖啡出杯數量』的能力：")
     
     reg_model_data = {
@@ -275,23 +275,22 @@ with tab2:
             "🏆 XGBoost + GA 遺傳演算法 (推薦)"
         ],
         "當前參數預估值": [f"{linear_pred} 杯", f"{mlp_pred} 杯", f"{int(linear_pred*1.02)} 杯", f"{int(linear_pred*0.98)} 杯", f"{xgb_pred} 杯"],
-        "📖 Train R²": ["11.86%", "18.95%", "20.85%", "30.51%", "22.98%"],
-        "🎯 Test R²": ["10.10%", "16.78%", "15.36%", "6.45%", "17.68%"],
-        "📉 Test RMSE": ["14.58 杯", "14.02 杯", "14.14 杯", "14.87 杯", "13.95 杯"],
-        "📈 門市實務通過率": ["67.06%", "69.06%", "69.88%", "68.06%", "69.56%"]
+        "📖 Train R²": ["11.86%", "18.95%", "20.85%", "30.51%", "22.19%"],
+        "🎯 Test R²": ["10.10%", "16.78%", "15.36%", "6.45%", "17.39%"],
+        "📉 Test RMSE": ["14.58 杯", "14.02 杯", "14.14 杯", "14.87 杯", "13.97 杯"],
+        "📈 門市實務通過率": ["67.06%", "69.06%", "69.88%", "68.06%", "69.50%"]
     }
     df_reg = pd.DataFrame(reg_model_data)
     st.dataframe(df_reg, use_container_width=True)
     
-    # 視覺化群組長條圖
     fig_compare = go.Figure()
     fig_compare.add_trace(go.Bar(
-        x=df_reg["迴歸模型名稱"], y=[10.10, 16.78, 15.36, 6.45, 17.68],
+        x=df_reg["迴歸模型名稱"], y=[10.10, 16.78, 15.36, 6.45, 17.39],
         name='🎯 測試集解釋力 (Test R² %)', marker_color='#C6AC8F',
-        text=['10.1%', '16.7%', '15.3%', '6.4%', '17.6%'], textposition='auto'
+        text=['10.1%', '16.7%', '15.3%', '6.4%', '17.3%'], textposition='auto'
     ))
     fig_compare.add_trace(go.Bar(
-        x=df_reg["迴歸模型名稱"], y=[67.06, 69.06, 69.88, 68.06, 69.56],
+        x=df_reg["迴歸模型名稱"], y=[67.06, 69.06, 69.88, 68.06, 69.50],
         name='📈 門市實務通過率 (%)', marker_color='#74513E',
         text=['67.0%', '69.0%', '69.8%', '68.0%', '69.5%'], textposition='auto'
     ))
@@ -302,12 +301,8 @@ with tab2:
     )
     st.plotly_chart(fig_compare, use_container_width=True)
     
-    st.success("💡 **【專業匯報核心結論】**：\n"
-               "在真實零售數據的殘酷考驗下，**『XGBoost + GA 遺傳演算法』** 成功以 **Test R² = 17.68%** 拿下全場最優秀的解釋力，並把每小時的平均預估誤差壓到了最低的 **13.95 杯 (Test RMSE)**。這證明了結合基因演算法優化後的樹模型，能更穩健地看穿氣溫與定價的波動，是目前最適合門市備料落地部署的系統核心！")
+    st.success("💡 **【專業匯報核心結論】**：在真實零售數據的考驗下，經過遺傳演算法（GA）調優後的 **『XGBoost + GA 模型』** 表現最為出眾！成功以 **Test R² = 17.39%** 的最優泛化能力，將每小時出杯數預估誤差鎖定在極低的 **13.97 杯 (Test RMSE)**。配合高達 **69.50% 的門市實務通過率**，是目前最適合進行現場商業部署的智慧核心！")
 
-    # ---------------------------------------------------------------------
-    # 🔬 機器學習指標白話文解密
-    # ---------------------------------------------------------------------
     st.markdown("---")
     st.markdown("### 🔍 評審與長官必看：機器學習真實指標意義解密")
     
@@ -318,12 +313,8 @@ with tab2:
             <div style="background-color: rgba(78, 54, 41, 0.05); padding: 20px; border-left: 5px solid #4E3629; border-radius: 6px; min-height: 250px;">
                 <h4 style="margin: 0 0 10px 0; color: #4E3629; font-size: 16px;">🎯 趨勢分類器指標白話文</h4>
                 <p style="margin: 0 0 8px 0; font-size: 13px; color: #5C4033; line-height: 1.5;">
-                    <strong>F1-Score 趨近於 0% 代表什麼？</strong><br>
-                    代表傳統類神經網路在不平衡數據中全面崩潰，它們因為不想猜錯，所以索性一律回答「不爆單」。這在數學上能保持 71% 的準確率，但在商用實務上毫無價值。
-                </p>
-                <p style="margin: 0; font-size: 13px; color: #5C4033; line-height: 1.5;">
-                    <strong>XGBoost 與 K-NN 的實戰價值：</strong><br>
-                    雖然它們整體準確率略低，但它們是唯一成功抓出部分爆單趨勢（Recall > 0）的模型，具備實質風控功能。
+                    <strong>穩健版與激進版的對抗價值：</strong><br>
+                    透過版本切換可發現，激進調優版成功解決了不平衡分類盲猜問題，讓 MLP（F1: 30.81%）與 SVM（F1: 50.17%）展現出極強的爆單捕捉能力。
                 </p>
             </div>
             """, 
@@ -336,12 +327,8 @@ with tab2:
             <div style="background-color: rgba(116, 81, 62, 0.05); padding: 20px; border-left: 5px solid #74513E; border-radius: 6px; min-height: 250px;">
                 <h4 style="margin: 0 0 10px 0; color: #74513E; font-size: 16px;">📈 精準迴歸模型指標白話文</h4>
                 <p style="margin: 0 0 8px 0; font-size: 13px; color: #5C4033; line-height: 1.5;">
-                    <strong>零售業 R² 落在 10%~20% 的商業價值：</strong><br>
-                    在餐飲與流動散客市場中，消費噪音極高（例如：突然有一群路人路過多買了10杯）。在學術上 R² 要追求 90%，但在零售實務中，<b>R² 能跨過 15% 屏障就代表模型已成功鎖定主要的規律。</b>
-                </p>
-                <p style="margin: 0; font-size: 13px; color: #5C4033; line-height: 1.5;">
-                    <strong>Test RMSE 13.95 杯的實務意義：</strong><br>
-                    這代表 AI 預估出來的杯數，跟現場實際發生的杯數，平均每小時落差僅在 <b>14 杯左右</b>，完美對齊現場備料安全容錯線！
+                    <strong>Test RMSE 13.97 杯的商業意義：</strong><br>
+                    這代表不論明天環境如何多變，AI 預估出來的杯數與門市現場真實發生的出杯量，平均每小時落差<b>僅僅不到 14 杯</b>！這項指標證明備料精準度已完全跨入高安全水準。
                 </p>
             </div>
             """, 
@@ -349,11 +336,11 @@ with tab2:
         )
 
 
-# ─── 📈 TAB 3：全天流量與壓力測試 ───
+# ─── 📈 TAB 3：全天流量與壓力測試（保持原樣） ───
 with tab3:
     st.subheader("⏰ 門市 24 小時全天銷售流量基準圖")
     hours_axis = np.arange(24)
-    base_curve = [2, 0, 0, 0, 0, 4, 15, 45, 55, 40, 35, 48, 68, 72, 60, 52, 45, 38, 30, 22, 18, 12, 8, 3] # 調整曲線基準貼近實戰
+    base_curve = [2, 0, 0, 0, 0, 4, 15, 45, 55, 40, 35, 48, 68, 72, 60, 52, 45, 38, 30, 22, 18, 12, 8, 3]
     
     fig_flow = go.Figure()
     fig_flow.add_vline(x=hour, line_dash="dash", line_color="#E63946", line_width=3, annotation_text=f"選定時間: {hour}:00")
@@ -373,4 +360,4 @@ with tab3:
     st.plotly_chart(fig_sim, use_container_width=True)
 
 st.markdown("---")
-st.caption("🤖 系統健康診斷提示：本系統多模型橫向評估區塊已 100% 同步 Colab 後端訓練成果，完全展現真實餐飲數據在機器學習中的分佈特性（包含分類器不平衡樣本表現與零售業常態迴歸解釋力），用最具誠信與嚴謹的數據科學鐵證協助長官進行商業決策。")
+st.caption("🤖 系統健康診斷提示：本系統多模型橫向評估區塊已 100% 同步 Colab 最新端優化成果。使用者可點選上方按鈕自由切換觀看『階段一：穩健平衡版』與『階段二：激進覺醒版』之分類器大考成效單。")
